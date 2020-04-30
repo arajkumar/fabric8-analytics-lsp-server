@@ -208,45 +208,39 @@ const getCAmsg = (deps, diagnostics): string => {
 const caDefaultMsg = 'Checking for security vulnerabilities ...';
 
 const metadataCache = new Map();
-const get_metadata = (ecosystem, name, version) => {
+const get_metadata = (ecosystem: string, deps: Array<object>) => {
     return new Promise((resolve, reject) => {
-        const cacheKey = ecosystem + " " + name + " " + version;
-        const metadata = metadataCache[cacheKey];
-        if (metadata != null) {
-            logger.info('cache hit for ' + cacheKey);
-            connection.console.log('cache hit for ' + cacheKey);
-            resolve(metadata);
-        } else {
-            const part = [ecosystem, name, version].map(v => encodeURIComponent(v)).join('/');
-            const options = {};
-                options['url'] = config.server_url;
-                if(config.three_scale_user_token){
-                    options['url'] += `/component-analyses/${part}?user_key=${config.three_scale_user_token}`;
-                } else{
-                    options['url'] += `/component-analyses/${part}/`;
-                }
-                options['headers'] = {
-                    'Authorization' : 'Bearer ' + config.api_token,
-                };
-            logger.debug('get ' + options['url']);
-            connection.console.log('Scanning ' + part);
-            if(process.env.RECOMMENDER_API_URL){
-                request.get(options, (err, httpResponse, body) => {
-                    if(err){
-                        reject(err);
-                    } else {
-                        if ((httpResponse.statusCode === 200 || httpResponse.statusCode === 202)) {
-                            let response = JSON.parse(body);
-                            logger.debug('response ' + response);
-                            metadataCache[cacheKey] = response;
-                            resolve(response);
-                        } else {
-                            reject(httpResponse.statusCode);
-                        }
-                    }
-                });
+      // (fixme): Use node-cache probably?
+      const epvs = deps.map((d: any) => new Object({ecosystem: ecosystem, package: d.name, version: d.version}));
+      const options = {};
+      options['url'] = config.server_url;
+      if(config.three_scale_user_token){
+        options['url'] += `/component-analyses/?user_key=${config.three_scale_user_token}`;
+      } else{
+        options['url'] += `/component-analyses/`;
+      }
+      options['headers'] = {
+        'Authorization' : 'Bearer ' + config.api_token,
+        'content-type': 'application/json',
+      };
+      options['body'] = JSON.stringify(epvs);
+      logger.debug('get ' + options['url']);
+      if(process.env.RECOMMENDER_API_URL){
+        connection.console.log(JSON.stringify(options))
+        request.post(options, (err, httpResponse, body) => {
+          if(err){
+            reject(err);
+          } else {
+            if ((httpResponse.statusCode === 200 || httpResponse.statusCode === 202)) {
+              let response = JSON.parse(body);
+              logger.debug('response ' + response);
+              resolve(response);
+            } else {
+              reject(httpResponse.statusCode);
             }
-        }
+          }
+        });
+      }
     });
 };
 
@@ -257,25 +251,19 @@ const sendDiagnostics = (ecosystem: string, uri: string, contents: string, colle
         let diagnostics = [];
         /* Aggregate asynchronous requests and send the diagnostics at once */
         let aggregator = new Aggregator(deps, () => {
-            connection.sendNotification('caNotification', {'data': getCAmsg(deps, diagnostics), 'diagCount' : diagnostics.length > 0? diagnostics.length : 0});
             connection.sendDiagnostics({uri: uri, diagnostics: diagnostics});
+            connection.sendNotification('caNotification', {'data': getCAmsg(deps, diagnostics), 'diagCount' : diagnostics.length > 0? diagnostics.length : 0});
         });
-        for (let dependency of deps) {
-            if(dependency.name.value && dependency.version.value && regexVersion.test(dependency.version.value.trim())) {
-                get_metadata(ecosystem, dependency.name.value, dependency.version.value).then((response) => {
-                    if (response != null) {
-                        let pipeline = new DiagnosticsPipeline(DiagnosticsEngines, dependency, config, diagnostics, uri);
-                        pipeline.run(response);
-                    }
-                    aggregator.aggregate(dependency);
-                }).catch((err)=>{
-                    aggregator.aggregate(dependency);
-                    connection.console.log(`Error ${err} while ${dependency.name.value}:${dependency.version.value}`);
-                });
-            } else {
-                aggregator.aggregate(dependency);
-            }
-        }
+        get_metadata(ecosystem, deps).then((response: Array<object>) => {
+            response.forEach((r) => {
+              let pipeline = new DiagnosticsPipeline(DiagnosticsEngines, dependency, config, diagnostics, uri);
+              pipeline.run(r);
+              aggregator.aggregate(dependency);
+            });
+        }).catch((err)=>{
+            aggregator.aggregate(dependency);
+            connection.console.log(`Error ${err} while ${dependency.name.value}:${dependency.version.value}`);
+        });
     });
 };
 
@@ -320,7 +308,7 @@ connection.onCodeAction((params, token): CodeAction[] => {
             codeActions.push(codeAction)
         }
     }
-    return codeActions;
+    return [];
 });
 
 connection.onDidCloseTextDocument((params) => {

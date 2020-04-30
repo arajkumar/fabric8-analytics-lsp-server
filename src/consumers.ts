@@ -146,7 +146,7 @@ class SecurityEngine extends AnalysisConsumer implements DiagnosticProducer
                 severity: DiagnosticSeverity.Error,
                 range: get_range(this.context.version),
                 message: `Application dependency ${this.context.name.value}-${this.context.version.value} is vulnerable: ${cves}`,
-                source: 'Dependency Analytics'
+                source: 'Dependency Analytics(powerd by snyk)'
             };
 
             // TODO: this can be done lazily
