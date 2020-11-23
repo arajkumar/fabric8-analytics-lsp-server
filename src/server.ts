@@ -6,8 +6,10 @@
 import * as path from 'path';
 import * as fs from 'fs';
 import {
-	IPCMessageReader, IPCMessageWriter, createConnection, IConnection,
-	TextDocuments, InitializeResult, CodeLens, CodeAction, CodeActionKind} from 'vscode-languageserver';
+    IPCMessageReader, IPCMessageWriter, createConnection, IConnection,
+    TextDocuments, InitializeResult, CodeLens, CodeAction, CodeActionKind,
+    DidChangeWatchedFilesNotification, FileSystemWatcher
+} from 'vscode-languageserver';
 import { IDependencyCollector, PackageJsonCollector, PomXmlDependencyCollector, ReqDependencyCollector, GomodDependencyCollector } from './collector';
 import { SecurityEngine, DiagnosticsPipeline, codeActionsMap } from './consumers';
 import { NoopVulnerabilityAggregator, GolangVulnerabilityAggregator } from './aggregators';
@@ -19,21 +21,21 @@ const winston = require('winston');
 
 let transport;
 try {
-  transport = new winston.transports.File({ filename: '/workspace-logs/ls-bayesian/bayesian.log' });
-} catch(err) {
-  transport = new winston.transports.Console({ silent: true });
+    transport = new winston.transports.File({ filename: '/workspace-logs/ls-bayesian/bayesian.log' });
+} catch (err) {
+    transport = new winston.transports.Console({ silent: true });
 }
 const logger = winston.createLogger({
-  level: 'debug',
-  format: winston.format.simple(),
-  transports: [ transport ]
+    level: 'debug',
+    format: winston.format.simple(),
+    transports: [transport]
 });
 logger.info('Starting Bayesian');
 
 enum EventStream {
-  Invalid,
-  Diagnostics,
-  CodeLens
+    Invalid,
+    Diagnostics,
+    CodeLens
 };
 
 let connection: IConnection = null;
@@ -49,12 +51,21 @@ documents.listen(connection);
 let workspaceRoot: string;
 connection.onInitialize((params): InitializeResult => {
     workspaceRoot = params.rootPath;
-    return {
-        capabilities: {
-            textDocumentSync: documents.syncKind,
-            codeActionProvider: true
-        }
+    console.log('@@@@@' + params.workspaceFolders.map(w => w.uri));
+    connection.onInitialized(() => {
+        connection.client.register(DidChangeWatchedFilesNotification.type, { watchers: [{ globPattern: "**/pom.xml" }] });
+});
+return {
+    capabilities: {
+        textDocumentSync: documents.syncKind,
+        codeActionProvider: true
     }
+}
+});
+
+connection.onDidChangeWatchedFiles(_change => {
+    // Monitored files have change in VSCode
+    connection.console.log('We received an file change event');
 });
 
 interface IFileHandlerCallback {
@@ -62,7 +73,7 @@ interface IFileHandlerCallback {
 };
 
 interface IAnalysisFileHandler {
-    matcher:  RegExp;
+    matcher: RegExp;
     stream: EventStream;
     callback: IFileHandlerCallback;
 };
@@ -101,17 +112,16 @@ class AnalysisFiles implements IAnalysisFiles {
     }
 };
 
-interface IAnalysisLSPServer
-{
+interface IAnalysisLSPServer {
     connection: IConnection;
-    files:      IAnalysisFiles;
+    files: IAnalysisFiles;
 
     handle_file_event(uri: string, contents: string): void;
     handle_code_lens_event(uri: string): CodeLens[];
 };
 
 class AnalysisLSPServer implements IAnalysisLSPServer {
-    constructor(public connection: IConnection, public files: IAnalysisFiles) {}
+    constructor(public connection: IConnection, public files: IAnalysisFiles) { }
 
     handle_file_event(uri: string, contents: string): void {
         let path_name = url.parse(uri).pathname;
@@ -131,16 +141,15 @@ class AnalysisLSPServer implements IAnalysisLSPServer {
     }
 };
 
-class AnalysisConfig
-{
-    server_url:               string;
-    api_token:                string;
-    three_scale_user_token:   string;
+class AnalysisConfig {
+    server_url: string;
+    api_token: string;
+    three_scale_user_token: string;
     provide_fullstack_action: boolean;
-    forbidden_licenses:       Array<string>;
-    no_crypto:                boolean;
-    home_dir:                 string;
-    uuid:                     string;
+    forbidden_licenses: Array<string>;
+    no_crypto: boolean;
+    home_dir: string;
+    uuid: string;
 
     constructor() {
         // TODO: this needs to be configurable
@@ -166,12 +175,12 @@ if (fs.existsSync(rc_file)) {
     }
 }
 const fullStackReportAction: CodeAction = {
-  title: "Detailed Vulnerability Report",
-  kind: CodeActionKind.QuickFix,
-  command: {
-    command: "extension.fabric8AnalyticsWidgetFullStack",
-    title: "Analytics Report",
-  }
+    title: "Detailed Vulnerability Report",
+    kind: CodeActionKind.QuickFix,
+    command: {
+        command: "extension.fabric8AnalyticsWidgetFullStack",
+        title: "Analytics Report",
+    }
 };
 
 let DiagnosticsEngines = [SecurityEngine];
@@ -180,12 +189,12 @@ let DiagnosticsEngines = [SecurityEngine];
 const getCAmsg = (deps, diagnostics, totalCount): string => {
     let msg = `Scanned ${deps.length} ${deps.length == 1 ? 'dependency' : 'dependencies'}, `;
 
-    
-    if(diagnostics.length > 0) {
+
+    if (diagnostics.length > 0) {
         const vulStr = (count: number) => count == 1 ? 'Vulnerability' : 'Vulnerabilities';
         const advStr = (count: number) => count == 1 ? 'Advisory' : 'Advisories';
-        const knownVulnMsg =  !totalCount.vulnerabilityCount || `${totalCount.vulnerabilityCount} Known Security ${vulStr(totalCount.vulnerabilityCount)}`;
-        const advisoryMsg =  !totalCount.advisoryCount || `${totalCount.advisoryCount} Security ${advStr(totalCount.advisoryCount)}`;
+        const knownVulnMsg = !totalCount.vulnerabilityCount || `${totalCount.vulnerabilityCount} Known Security ${vulStr(totalCount.vulnerabilityCount)}`;
+        const advisoryMsg = !totalCount.advisoryCount || `${totalCount.advisoryCount} Security ${advStr(totalCount.advisoryCount)}`;
         let summaryMsg = [knownVulnMsg, advisoryMsg].filter(x => x !== true).join(' and ');
         summaryMsg += (totalCount.exploitCount > 0) ? ` with ${totalCount.exploitCount} Exploitable ${vulStr(totalCount.exploitCount)}` : "";
         summaryMsg += ((totalCount.vulnerabilityCount + totalCount.advisoryCount) > 0) ? " along with quick fixes" : "";
@@ -215,9 +224,9 @@ const fetchVulnerabilities = async (reqData) => {
         headers['uuid'] = config.uuid;
     }
     try {
-        const response = await fetch(url , {
+        const response = await fetch(url, {
             method: 'post',
-            body:    JSON.stringify(reqData),
+            body: JSON.stringify(reqData),
             headers: headers,
         });
 
@@ -229,7 +238,7 @@ const fetchVulnerabilities = async (reqData) => {
             connection.console.warn(`fetch error. http status ${response.status}`);
             return response.status;
         }
-    } catch(err) {
+    } catch (err) {
         connection.console.error(`Exception while fetch: ${err}`);
     }
 };
@@ -269,9 +278,9 @@ function slicePayload(payload, batchSize, ecosystem): any {
     return reqData;
 }
 
-const regexVersion =  new RegExp(/^([a-zA-Z0-9]+\.)?([a-zA-Z0-9]+\.)?([a-zA-Z0-9]+\.)?([a-zA-Z0-9]+)$/);
+const regexVersion = new RegExp(/^([a-zA-Z0-9]+\.)?([a-zA-Z0-9]+\.)?([a-zA-Z0-9]+\.)?([a-zA-Z0-9]+)$/);
 const sendDiagnostics = async (ecosystem: string, diagnosticFilePath: string, contents: string, collector: IDependencyCollector) => {
-    connection.sendNotification('caNotification', {'data': caDefaultMsg});
+    connection.sendNotification('caNotification', { 'data': caDefaultMsg });
     let deps = null;
     try {
         deps = await collector.collect(contents);
@@ -279,7 +288,7 @@ const sendDiagnostics = async (ecosystem: string, diagnosticFilePath: string, co
         // Error can be raised during golang `go list ` command only.
         if (ecosystem == "golang") {
             console.error("Command execution failed, something wrong with manifest file go.mod\n%s", error);
-            connection.sendNotification('caError', {'data': 'Unable to execute `go list` command, run `go mod tidy` to resolve dependencies issues'});
+            connection.sendNotification('caError', { 'data': 'Unable to execute `go list` command, run `go mod tidy` to resolve dependencies issues' });
             return;
         }
     }
@@ -292,7 +301,7 @@ const sendDiagnostics = async (ecosystem: string, diagnosticFilePath: string, co
     } else {
         packageAggregator = new GolangVulnerabilityAggregator();
     }
-    const requestPayload = validPackages.map(d => ({"package": d.name.value, "version": d.version.value}));
+    const requestPayload = validPackages.map(d => ({ "package": d.name.value, "version": d.version.value }));
     const requestMapper = new Map(validPackages.map(d => [d.name.value + d.version.value, d]));
     const batchSize = 10;
     let diagnostics = [];
@@ -305,7 +314,7 @@ const sendDiagnostics = async (ecosystem: string, diagnosticFilePath: string, co
     await Promise.allSettled(allRequests);
     const end = new Date().getTime();
     connection.console.log("Time taken to fetch vulnerabilities: " + ((end - start) / 1000).toFixed(1) + " sec.");
-    connection.sendNotification('caNotification', {'data': getCAmsg(deps, diagnostics, totalCount), 'diagCount' : diagnostics.length > 0? diagnostics.length : 0});
+    connection.sendNotification('caNotification', { 'data': getCAmsg(deps, diagnostics, totalCount), 'diagCount': diagnostics.length > 0 ? diagnostics.length : 0 });
 };
 
 files.on(EventStream.Diagnostics, "^package\\.json$", (uri, name, contents) => {
@@ -351,7 +360,7 @@ connection.onCodeAction((params, token): CodeAction[] => {
         let codeAction = codeActionsMap[diagnostic.range.start.line + "|" + diagnostic.range.start.character];
         if (codeAction != null) {
             codeActions.push(codeAction);
-   
+
         }
         if (!hasAnalyticsDiagonostic) {
             hasAnalyticsDiagonostic = diagnostic.source === AnalyticsSource;
