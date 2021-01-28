@@ -1,5 +1,5 @@
 {
-  "name": "fabric8-analytics-lsp-server",
+  "name": "fabric8-analytics-lsp-server-test-gh",
   "description": "LSP Server for Dependency Analytics",
   "version": "0.0.0-development",
   "author": "Pavel Odvody",
@@ -27,7 +27,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/fabric8-analytics/fabric8-analytics-lsp-server.git"
+    "url": "https://github.com/arajkumar/fabric8-analytics-lsp-server.git"
   },
   "main": "output/server.js",
   "dependencies": {
