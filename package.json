@@ -63,7 +63,8 @@
   "scripts": {
     "build": "tsc -p . && cp package.json LICENSE README.md output",
     "test": "nyc mocha",
-    "semantic-release": "semantic-release --debug"
+    "semantic-release": "semantic-release --debug",
+    "prepare": "npm run build"
   },
   "nyc": {
     "include": [
