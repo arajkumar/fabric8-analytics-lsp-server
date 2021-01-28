@@ -18,9 +18,6 @@
     }
   ],
   "license": "Apache-2.0",
-  "engines": {
-    "node": "^12.0"
-  },
   "keywords": [
     "fabric8-analytics",
     "LSP"
@@ -63,7 +60,6 @@
   "scripts": {
     "build": "tsc -p .",
     "test": "nyc mocha",
-    "semantic-release": "semantic-release --debug",
     "prepare": "npm run build"
   },
   "nyc": {
