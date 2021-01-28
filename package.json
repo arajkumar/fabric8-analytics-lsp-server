@@ -31,6 +31,9 @@
   },
   "main": "output/server.js",
   "bin": "output/server.js",
+  "files": [
+    "output"
+  ],
   "dependencies": {
     "@xml-tools/ast": "^5.0.3",
     "@xml-tools/parser": "1.0.9",
