@@ -30,6 +30,7 @@
     "url": "https://github.com/arajkumar/fabric8-analytics-lsp-server.git"
   },
   "main": "output/server.js",
+  "bin": "output/server.js",
   "dependencies": {
     "@xml-tools/ast": "^5.0.3",
     "@xml-tools/parser": "1.0.9",
