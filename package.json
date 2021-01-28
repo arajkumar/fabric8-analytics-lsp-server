@@ -29,10 +29,10 @@
     "type": "git",
     "url": "https://github.com/arajkumar/fabric8-analytics-lsp-server.git"
   },
-  "main": "output/server.js",
-  "bin": "output/server.js",
+  "main": "dist/server.js",
+  "bin": "dist/server.js",
   "files": [
-    "output"
+    "dist"
   ],
   "dependencies": {
     "@xml-tools/ast": "^5.0.3",
@@ -61,7 +61,7 @@
     "typescript": "^3.6.3"
   },
   "scripts": {
-    "build": "tsc -p . && cp package.json LICENSE README.md output",
+    "build": "tsc -p .",
     "test": "nyc mocha",
     "semantic-release": "semantic-release --debug",
     "prepare": "npm run build"
